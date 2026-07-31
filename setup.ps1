@@ -8,7 +8,11 @@
 #   - SSH configuration
 #
 # Reads:
-#   servers.conf
+#   servers.conf   (alias|host|username|container)
+#     - container is OPTIONAL. If set, connecting via that
+#       alias will drop straight into that docker container
+#       on the remote host (sudo docker exec -it <container> bash)
+#       instead of a plain shell.
 #
 # Author: NexGenAds
 # ==========================================================
@@ -144,16 +148,22 @@ Get-Content $serversFile | ForEach-Object {
     if ($_ -match "^#" -or $_.Trim() -eq "") {
         return
     }
-    $parts    = $_ -split "\|"
-    $Alias    = $parts[0]
-    $HostName = $parts[1]
-    $UserName = $parts[2]
+    $parts     = $_ -split "\|"
+    $Alias     = $parts[0]
+    $HostName  = $parts[1]
+    $UserName  = $parts[2]
+    $Container = if ($parts.Count -ge 4) { $parts[3].Trim() } else { "" }
 
     $newContent += ""
     $newContent += "Host $Alias"
     $newContent += "    HostName $HostName"
     $newContent += "    User $UserName"
     $newContent += "    ProxyCommand cloudflared access ssh --hostname %h"
+
+    if ($Container -ne "") {
+        $newContent += "    RequestTTY yes"
+        $newContent += "    RemoteCommand sudo docker exec -it $Container bash"
+    }
 }
 
 $newContent += ""
@@ -173,8 +183,15 @@ Write-Host ""
 
 Get-Content $serversFile | ForEach-Object {
     if ($_ -match "^#" -or $_.Trim() -eq "") { return }
-    $parts = $_ -split "\|"
-    Write-Host "  ssh $($parts[0])"
+    $parts     = $_ -split "\|"
+    $Alias     = $parts[0]
+    $Container = if ($parts.Count -ge 4) { $parts[3].Trim() } else { "" }
+
+    if ($Container -ne "") {
+        Write-Host "  ssh $Alias   (-> container: $Container)"
+    } else {
+        Write-Host "  ssh $Alias"
+    }
 }
 
 Write-Host ""
