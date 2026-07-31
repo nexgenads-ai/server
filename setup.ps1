@@ -1,94 +1,58 @@
-$HostName = "server.nexgenads.space"
-$UserName = "home"
+$StartMarker = "# >>> NexGenAds SSH START >>>"
+$EndMarker   = "# <<< NexGenAds SSH END <<<"
 
-Write-Host ""
-Write-Host "======================================="
-Write-Host " Cloudflare SSH Setup"
-Write-Host "======================================="
-Write-Host ""
+$content = @()
 
-# Check if cloudflared exists
-if (!(Get-Command cloudflared -ErrorAction SilentlyContinue)) {
+if (Test-Path $configFile) {
+    $content = Get-Content $configFile
+}
 
-    Write-Host "Installing cloudflared..."
+$newContent = @()
 
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
+$skip = $false
 
-        winget install Cloudflare.cloudflared `
-            --accept-package-agreements `
-            --accept-source-agreements
+foreach ($line in $content) {
 
-    }
-    else {
-
-        Write-Host ""
-        Write-Host "Winget is not installed."
-        Write-Host "Please install cloudflared manually."
-        exit 1
-
+    if ($line -eq $StartMarker) {
+        $skip = $true
+        continue
     }
 
-}
-else {
+    if ($line -eq $EndMarker) {
+        $skip = $false
+        continue
+    }
 
-    Write-Host "✓ cloudflared already installed."
-
-}
-
-# Verify SSH exists
-if (!(Get-Command ssh -ErrorAction SilentlyContinue)) {
-
-    Write-Host ""
-    Write-Host "OpenSSH Client is not installed."
-    Write-Host "Install the OpenSSH Client feature in Windows."
-    exit 1
+    if (-not $skip) {
+        $newContent += $line
+    }
 
 }
 
-$sshFolder = "$env:USERPROFILE\.ssh"
+$newContent += ""
+$newContent += $StartMarker
 
-if (!(Test-Path $sshFolder)) {
+Get-Content $serversFile | ForEach-Object {
 
-    New-Item -ItemType Directory -Path $sshFolder | Out-Null
+    if ($_ -match "^#" -or $_.Trim() -eq "") {
+        return
+    }
 
-}
+    $parts = $_ -split "\|"
 
-$configFile = "$sshFolder\config"
+    $Alias = $parts[0]
+    $HostName = $parts[1]
+    $UserName = $parts[2]
 
-if (!(Test-Path $configFile)) {
-
-    New-Item -ItemType File -Path $configFile | Out-Null
-
-}
-
-$config = Get-Content $configFile -Raw
-
-if ($config -notmatch [regex]::Escape($HostName)) {
-
-Add-Content $configFile @"
-
-Host $HostName
-    HostName $HostName
-    User $UserName
-    ProxyCommand cloudflared access ssh --hostname %h
-
-"@
-
-    Write-Host "✓ SSH configuration added."
-
-}
-else {
-
-    Write-Host "✓ SSH configuration already exists."
+    $newContent += ""
+    $newContent += "Host $Alias"
+    $newContent += "    HostName $HostName"
+    $newContent += "    User $UserName"
+    $newContent += "    ProxyCommand cloudflared access ssh --hostname %h"
 
 }
 
-Write-Host ""
-Write-Host "======================================="
-Write-Host "Setup Complete!"
-Write-Host "======================================="
-Write-Host ""
-Write-Host "Connect using:"
-Write-Host ""
-Write-Host "ssh $UserName@$HostName"
-Write-Host ""
+$newContent += ""
+$newContent += $EndMarker
+
+$newContent | Set-Content $configFile
