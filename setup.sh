@@ -20,22 +20,9 @@
 
 set -e
 
-REPO="https://raw.githubusercontent.com/nexgenads-ai/server/main"
-
-TMP_DIR=$(mktemp -d)
-SERVERS_FILE="$TMP_DIR/servers.conf"
-
-info "Downloading server configuration..."
-
-curl -fsSL "$REPO/servers.conf" -o "$SERVERS_FILE"
-
-if [ ! -s "$SERVERS_FILE" ]; then
-    error "Failed to download servers.conf"
-    exit 1
-fi
-
-success "Downloaded servers.conf"
-CONFIG_FILE="$HOME/.ssh/config"
+# ----------------------------------------------------------
+# Colors + helper functions (must be defined before use)
+# ----------------------------------------------------------
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -59,13 +46,38 @@ error() {
     echo -e "${RED}$1${NC}"
 }
 
+# ----------------------------------------------------------
+# Setup + cleanup
+# ----------------------------------------------------------
+
+REPO="https://raw.githubusercontent.com/nexgenads-ai/server/main"
+
+TMP_DIR=$(mktemp -d)
+SERVERS_FILE="$TMP_DIR/servers.conf"
+CONFIG_FILE="$HOME/.ssh/config"
+
+trap 'rm -rf "$TMP_DIR"' EXIT
+
 echo
 echo "=========================================="
 echo "      NexGenAds SSH Installer"
 echo "=========================================="
 echo
 
+# ----------------------------------------------------------
+# Download server configuration
+# ----------------------------------------------------------
 
+info "Downloading server configuration..."
+
+curl -fsSL "$REPO/servers.conf" -o "$SERVERS_FILE"
+
+if [ ! -s "$SERVERS_FILE" ]; then
+    error "Failed to download servers.conf"
+    exit 1
+fi
+
+success "Downloaded servers.conf"
 
 # ----------------------------------------------------------
 # Detect OS
@@ -176,6 +188,7 @@ if [ "$PLATFORM" = "linux" ]; then
 else
     install_macos
 fi
+
 # ----------------------------------------------------------
 # Prepare SSH Directory
 # ----------------------------------------------------------
@@ -230,3 +243,24 @@ done < "$SERVERS_FILE"
 echo "$END_MARKER"
 
 } >> "$CONFIG_FILE"
+
+# ----------------------------------------------------------
+# Summary
+# ----------------------------------------------------------
+
+echo
+success "SSH configuration installed."
+
+echo
+echo "Available hosts:"
+echo
+
+awk -F'|' '
+/^#/ {next}
+NF>=3 {
+    printf "  ssh %s\n", $1
+}
+' "$SERVERS_FILE"
+
+echo
+success "Installation completed successfully!"
