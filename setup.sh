@@ -1,99 +1,226 @@
 #!/usr/bin/env bash
+
+# ==========================================================
+# NexGenAds SSH Setup
+# Supports:
+#   - Ubuntu / Debian
+#   - Fedora / RHEL / CentOS
+#   - Arch Linux
+#   - macOS
+#
+# Installs:
+#   - cloudflared (if missing)
+#   - SSH configuration
+#
+# Reads:
+#   servers.conf
+#
+# Author: NexGenAds
+# ==========================================================
+
 set -e
 
-HOSTNAME="server.nexgenads.space"
-USERNAME="home"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVERS_FILE="$SCRIPT_DIR/servers.conf"
+CONFIG_FILE="$HOME/.ssh/config"
 
-echo "======================================="
-echo " Cloudflare SSH Setup"
-echo "======================================="
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
+success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+info() {
+    echo -e "${BLUE}$1${NC}"
+}
+
+warn() {
+    echo -e "${YELLOW}$1${NC}"
+}
+
+error() {
+    echo -e "${RED}$1${NC}"
+}
+
+echo
+echo "=========================================="
+echo "      NexGenAds SSH Installer"
+echo "=========================================="
+echo
+
+# ----------------------------------------------------------
+# Verify servers.conf
+# ----------------------------------------------------------
+
+if [ ! -f "$SERVERS_FILE" ]; then
+    error "servers.conf not found."
+    exit 1
+fi
+
+# ----------------------------------------------------------
 # Detect OS
+# ----------------------------------------------------------
+
 OS="$(uname -s)"
 
-install_cloudflared_linux() {
-    if command -v cloudflared >/dev/null 2>&1; then
-        echo "✓ cloudflared already installed"
-        return
-    fi
-
-    echo "Installing cloudflared..."
-
-    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
-      | sudo gpg --dearmor -o /usr/share/keyrings/cloudflare-main.gpg
-
-    echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
-      | sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
-
-    sudo apt update
-    sudo apt install -y cloudflared
-}
-
-install_cloudflared_macos() {
-    if command -v cloudflared >/dev/null 2>&1; then
-        echo "✓ cloudflared already installed"
-        return
-    fi
-
-    if ! command -v brew >/dev/null 2>&1; then
-        echo "Homebrew is required."
-        echo "Install it from https://brew.sh"
-        exit 1
-    fi
-
-    brew install cloudflared
-}
-
-# Install cloudflared
 case "$OS" in
     Linux*)
-        install_cloudflared_linux
+        PLATFORM="linux"
         ;;
     Darwin*)
-        install_cloudflared_macos
+        PLATFORM="macos"
         ;;
     *)
-        echo "Unsupported OS: $OS"
+        error "Unsupported operating system: $OS"
         exit 1
         ;;
 esac
 
-# Verify SSH exists
+success "Detected $PLATFORM"
+
+# ----------------------------------------------------------
+# Check SSH Client
+# ----------------------------------------------------------
+
 if ! command -v ssh >/dev/null 2>&1; then
-    echo "OpenSSH client is not installed."
+    error "OpenSSH client is not installed."
     exit 1
 fi
 
-mkdir -p ~/.ssh
-chmod 700 ~/.ssh
+success "OpenSSH found"
 
-CONFIG_FILE="$HOME/.ssh/config"
+# ----------------------------------------------------------
+# Install Cloudflared
+# ----------------------------------------------------------
 
-if ! grep -q "$HOSTNAME" "$CONFIG_FILE" 2>/dev/null; then
+install_linux() {
 
-cat <<EOF >> "$CONFIG_FILE"
+    if command -v cloudflared >/dev/null 2>&1; then
+        success "Cloudflared already installed"
+        return
+    fi
 
-Host $HOSTNAME
-    HostName $HOSTNAME
+    info "Installing Cloudflared..."
+
+    if command -v apt >/dev/null 2>&1; then
+
+        curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
+        | sudo gpg --dearmor \
+        -o /usr/share/keyrings/cloudflare-main.gpg
+
+        echo \
+"deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
+        | sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
+
+        sudo apt update
+        sudo apt install -y cloudflared
+
+    elif command -v dnf >/dev/null 2>&1; then
+
+        sudo dnf install -y cloudflared
+
+    elif command -v yum >/dev/null 2>&1; then
+
+        sudo yum install -y cloudflared
+
+    elif command -v pacman >/dev/null 2>&1; then
+
+        sudo pacman -Sy --noconfirm cloudflared
+
+    else
+
+        error "Unsupported Linux distribution."
+        exit 1
+
+    fi
+
+    success "Cloudflared installed"
+
+}
+
+install_macos() {
+
+    if command -v cloudflared >/dev/null 2>&1; then
+        success "Cloudflared already installed"
+        return
+    fi
+
+    if ! command -v brew >/dev/null 2>&1; then
+        error "Homebrew is required."
+        echo
+        echo "Install Homebrew:"
+        echo "https://brew.sh"
+        exit 1
+    fi
+
+    info "Installing Cloudflared..."
+
+    brew install cloudflared
+
+    success "Cloudflared installed"
+
+}
+
+if [ "$PLATFORM" = "linux" ]; then
+    install_linux
+else
+    install_macos
+fi
+# ----------------------------------------------------------
+# Prepare SSH Directory
+# ----------------------------------------------------------
+
+mkdir -p "$HOME/.ssh"
+chmod 700 "$HOME/.ssh"
+
+touch "$CONFIG_FILE"
+chmod 600 "$CONFIG_FILE"
+
+START_MARKER="# >>> NexGenAds SSH START >>>"
+END_MARKER="# <<< NexGenAds SSH END <<<"
+
+TMP_FILE=$(mktemp)
+
+if grep -q "$START_MARKER" "$CONFIG_FILE"; then
+
+    awk -v start="$START_MARKER" -v end="$END_MARKER" '
+
+    $0==start {skip=1;next}
+    $0==end {skip=0;next}
+
+    !skip
+
+    ' "$CONFIG_FILE" > "$TMP_FILE"
+
+    mv "$TMP_FILE" "$CONFIG_FILE"
+
+fi
+
+{
+echo
+echo "$START_MARKER"
+
+while IFS="|" read -r ALIAS HOST USERNAME
+do
+
+    [ -z "$ALIAS" ] && continue
+    [[ "$ALIAS" =~ ^# ]] && continue
+
+cat <<EOF
+
+Host $ALIAS
+    HostName $HOST
     User $USERNAME
     ProxyCommand cloudflared access ssh --hostname %h
 
 EOF
 
-echo "✓ SSH configuration added."
+done < "$SERVERS_FILE"
 
-else
-    echo "✓ SSH configuration already exists."
-fi
+echo "$END_MARKER"
 
-chmod 600 "$CONFIG_FILE"
-
-echo
-echo "======================================="
-echo "Setup Complete!"
-echo "======================================="
-echo
-echo "Connect using:"
-echo
-echo "ssh $USERNAME@$HOSTNAME"
-echo
+} >> "$CONFIG_FILE"
