@@ -8,11 +8,12 @@
 #   - SSH configuration
 #
 # Reads:
-#   servers.conf   (alias|host|username|container)
-#     - container is OPTIONAL. If set, connecting via that
-#       alias will drop straight into that docker container
-#       on the remote host (sudo docker exec -it <container> bash)
-#       instead of a plain shell.
+#   servers.conf   (alias|host|username|target)
+#     - target is OPTIONAL. If set, the alias sends "target"
+#       as the SSH remote command, which the server-side
+#       dispatcher (server-dispatch.sh, run once on the
+#       server) turns into a docker exec into that service.
+#       Leave blank for a plain login shell.
 #
 # Author: NexGenAds
 # ==========================================================
@@ -162,7 +163,7 @@ Get-Content $serversFile | ForEach-Object {
 
     if ($Container -ne "") {
         $newContent += "    RequestTTY yes"
-        $newContent += "    RemoteCommand sudo docker exec -it $Container bash"
+        $newContent += "    RemoteCommand $Container"
     }
 }
 
