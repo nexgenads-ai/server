@@ -8,12 +8,12 @@
 #   - SSH configuration
 #
 # Reads:
-#   servers.conf   (alias|host|username|target)
-#     - target is OPTIONAL. If set, the alias sends "target"
-#       as the SSH remote command, which the server-side
-#       dispatcher (server-dispatch.sh, run once on the
-#       server) turns into a docker exec into that service.
-#       Leave blank for a plain login shell.
+#   servers.conf   (alias|host|username|port)
+#     - port is OPTIONAL. If set, connecting via that alias
+#       forwards localhost:<port> to the same port on the
+#       remote host AND automatically opens
+#       http://localhost:<port> in your default browser.
+#       Leave blank for a plain login shell (e.g. "server").
 #
 # Author: NexGenAds
 # ==========================================================
@@ -149,11 +149,11 @@ Get-Content $serversFile | ForEach-Object {
     if ($_ -match "^#" -or $_.Trim() -eq "") {
         return
     }
-    $parts     = $_ -split "\|"
-    $Alias     = $parts[0]
-    $HostName  = $parts[1]
-    $UserName  = $parts[2]
-    $Container = if ($parts.Count -ge 4) { $parts[3].Trim() } else { "" }
+    $parts    = $_ -split "\|"
+    $Alias    = $parts[0]
+    $HostName = $parts[1]
+    $UserName = $parts[2]
+    $Port     = if ($parts.Count -ge 4) { $parts[3].Trim() } else { "" }
 
     $newContent += ""
     $newContent += "Host $Alias"
@@ -161,9 +161,10 @@ Get-Content $serversFile | ForEach-Object {
     $newContent += "    User $UserName"
     $newContent += "    ProxyCommand cloudflared access ssh --hostname %h"
 
-    if ($Container -ne "") {
-        $newContent += "    RequestTTY yes"
-        $newContent += "    RemoteCommand $Container"
+    if ($Port -ne "") {
+        $newContent += "    LocalForward $Port localhost:$Port"
+        $newContent += "    PermitLocalCommand yes"
+        $newContent += "    LocalCommand cmd /c start http://localhost:$Port"
     }
 }
 
@@ -184,12 +185,12 @@ Write-Host ""
 
 Get-Content $serversFile | ForEach-Object {
     if ($_ -match "^#" -or $_.Trim() -eq "") { return }
-    $parts     = $_ -split "\|"
-    $Alias     = $parts[0]
-    $Container = if ($parts.Count -ge 4) { $parts[3].Trim() } else { "" }
+    $parts = $_ -split "\|"
+    $Alias = $parts[0]
+    $Port  = if ($parts.Count -ge 4) { $parts[3].Trim() } else { "" }
 
-    if ($Container -ne "") {
-        Write-Host "  ssh $Alias   (-> container: $Container)"
+    if ($Port -ne "") {
+        Write-Host "  ssh $Alias   (-> opens http://localhost:$Port)"
     } else {
         Write-Host "  ssh $Alias"
     }
