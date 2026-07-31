@@ -13,12 +13,12 @@
 #   - SSH configuration
 #
 # Reads:
-#   servers.conf   (alias|host|username|target)
-#     - target is OPTIONAL. If set, the alias sends "target"
-#       as the SSH remote command, which the server-side
-#       dispatcher (server-dispatch.sh, run once on the
-#       server) turns into a docker exec into that service.
-#       Leave blank for a plain login shell.
+#   servers.conf   (alias|host|username|port)
+#     - port is OPTIONAL. If set, connecting via that alias
+#       forwards localhost:<port> to the same port on the
+#       remote host AND automatically opens
+#       http://localhost:<port> in your default browser.
+#       Leave blank for a plain login shell (e.g. "server").
 #
 # Author: NexGenAds
 # ==========================================================
@@ -93,9 +93,11 @@ OS="$(uname -s)"
 case "$OS" in
     Linux*)
         PLATFORM="linux"
+        OPEN_CMD="xdg-open"
         ;;
     Darwin*)
         PLATFORM="macos"
+        OPEN_CMD="open"
         ;;
     *)
         error "Unsupported operating system: $OS"
@@ -228,14 +230,14 @@ fi
 echo
 echo "$START_MARKER"
 
-while IFS="|" read -r ALIAS HOST USERNAME CONTAINER
+while IFS="|" read -r ALIAS HOST USERNAME PORT
 do
 
     [ -z "$ALIAS" ] && continue
     [[ "$ALIAS" =~ ^# ]] && continue
 
-    # trim whitespace from container field
-    CONTAINER="$(echo "$CONTAINER" | xargs)"
+    # trim whitespace from port field
+    PORT="$(echo "$PORT" | xargs)"
 
 cat <<EOF
 
@@ -245,10 +247,11 @@ Host $ALIAS
     ProxyCommand cloudflared access ssh --hostname %h
 EOF
 
-    if [ -n "$CONTAINER" ]; then
+    if [ -n "$PORT" ]; then
 cat <<EOF
-    RequestTTY yes
-    RemoteCommand $CONTAINER
+    LocalForward $PORT localhost:$PORT
+    PermitLocalCommand yes
+    LocalCommand $OPEN_CMD http://localhost:$PORT >/dev/null 2>&1 &
 EOF
     fi
 
@@ -275,7 +278,7 @@ awk -F'|' '
 /^#/ {next}
 NF>=1 && $1 != "" {
     if (NF>=4 && $4 != "") {
-        printf "  ssh %s   (-> container: %s)\n", $1, $4
+        printf "  ssh %s   (-> opens http://localhost:%s)\n", $1, $4
     } else {
         printf "  ssh %s\n", $1
     }
