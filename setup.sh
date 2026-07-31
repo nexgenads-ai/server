@@ -20,8 +20,21 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVERS_FILE="$SCRIPT_DIR/servers.conf"
+REPO="https://raw.githubusercontent.com/nexgenads-ai/server/main"
+
+TMP_DIR=$(mktemp -d)
+SERVERS_FILE="$TMP_DIR/servers.conf"
+
+info "Downloading server configuration..."
+
+curl -fsSL "$REPO/servers.conf" -o "$SERVERS_FILE"
+
+if [ ! -s "$SERVERS_FILE" ]; then
+    error "Failed to download servers.conf"
+    exit 1
+fi
+
+success "Downloaded servers.conf"
 CONFIG_FILE="$HOME/.ssh/config"
 
 GREEN='\033[0;32m'
@@ -52,14 +65,7 @@ echo "      NexGenAds SSH Installer"
 echo "=========================================="
 echo
 
-# ----------------------------------------------------------
-# Verify servers.conf
-# ----------------------------------------------------------
 
-if [ ! -f "$SERVERS_FILE" ]; then
-    error "servers.conf not found."
-    exit 1
-fi
 
 # ----------------------------------------------------------
 # Detect OS
