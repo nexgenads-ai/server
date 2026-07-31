@@ -1,266 +1,198 @@
-#!/usr/bin/env bash
+#Requires -Version 5.0
 
 # ==========================================================
-# NexGenAds SSH Setup
-# Supports:
-#   - Ubuntu / Debian
-#   - Fedora / RHEL / CentOS
-#   - Arch Linux
-#   - macOS
+# NexGenAds SSH Setup (Windows)
 #
 # Installs:
 #   - cloudflared (if missing)
 #   - SSH configuration
 #
 # Reads:
-#   servers.conf
+#   servers.conf   (alias|host|username|container)
+#     - container is OPTIONAL. If set, connecting via that
+#       alias will drop straight into that docker container
+#       on the remote host (sudo docker exec -it <container> bash)
+#       instead of a plain shell.
 #
 # Author: NexGenAds
 # ==========================================================
 
-set -e
+$ErrorActionPreference = "Stop"
 
 # ----------------------------------------------------------
-# Colors + helper functions (must be defined before use)
+# Helper functions (must be defined before use)
 # ----------------------------------------------------------
 
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-success() {
-    echo -e "${GREEN}✓ $1${NC}"
-}
-
-info() {
-    echo -e "${BLUE}$1${NC}"
-}
-
-warn() {
-    echo -e "${YELLOW}$1${NC}"
-}
-
-error() {
-    echo -e "${RED}$1${NC}"
-}
+function Success($msg) { Write-Host "[OK] $msg" -ForegroundColor Green }
+function Info($msg)    { Write-Host "$msg" -ForegroundColor Cyan }
+function WarnMsg($msg) { Write-Host "$msg" -ForegroundColor Yellow }
+function ErrorMsg($msg){ Write-Host "$msg" -ForegroundColor Red }
 
 # ----------------------------------------------------------
-# Setup + cleanup
+# Paths / variables (must be defined before use)
 # ----------------------------------------------------------
 
-REPO="https://raw.githubusercontent.com/nexgenads-ai/server/main"
+$Repo        = "https://raw.githubusercontent.com/nexgenads-ai/server/main"
+$TmpDir      = Join-Path $env:TEMP ("nexgenads_" + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $TmpDir | Out-Null
 
-TMP_DIR=$(mktemp -d)
-SERVERS_FILE="$TMP_DIR/servers.conf"
-CONFIG_FILE="$HOME/.ssh/config"
+$serversFile = Join-Path $TmpDir "servers.conf"
+$sshDir      = Join-Path $env:USERPROFILE ".ssh"
+$configFile  = Join-Path $sshDir "config"
 
-trap 'rm -rf "$TMP_DIR"' EXIT
+# Cleanup temp dir on exit
+Register-EngineEvent PowerShell.Exiting -Action {
+    Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
+} | Out-Null
 
-echo
-echo "=========================================="
-echo "      NexGenAds SSH Installer"
-echo "=========================================="
-echo
+Write-Host ""
+Write-Host "=========================================="
+Write-Host "      NexGenAds SSH Installer"
+Write-Host "=========================================="
+Write-Host ""
 
 # ----------------------------------------------------------
 # Download server configuration
 # ----------------------------------------------------------
 
-info "Downloading server configuration..."
+Info "Downloading server configuration..."
 
-curl -fsSL "$REPO/servers.conf" -o "$SERVERS_FILE"
-
-if [ ! -s "$SERVERS_FILE" ]; then
-    error "Failed to download servers.conf"
+try {
+    Invoke-WebRequest -Uri "$Repo/servers.conf" -OutFile $serversFile -UseBasicParsing
+} catch {
+    ErrorMsg "Failed to download servers.conf"
     exit 1
-fi
+}
 
-success "Downloaded servers.conf"
+if (-not (Test-Path $serversFile) -or (Get-Item $serversFile).Length -eq 0) {
+    ErrorMsg "Failed to download servers.conf"
+    exit 1
+}
 
-# ----------------------------------------------------------
-# Detect OS
-# ----------------------------------------------------------
-
-OS="$(uname -s)"
-
-case "$OS" in
-    Linux*)
-        PLATFORM="linux"
-        ;;
-    Darwin*)
-        PLATFORM="macos"
-        ;;
-    *)
-        error "Unsupported operating system: $OS"
-        exit 1
-        ;;
-esac
-
-success "Detected $PLATFORM"
+Success "Downloaded servers.conf"
 
 # ----------------------------------------------------------
 # Check SSH Client
 # ----------------------------------------------------------
 
-if ! command -v ssh >/dev/null 2>&1; then
-    error "OpenSSH client is not installed."
+if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
+    ErrorMsg "OpenSSH client is not installed. Install it via: Settings > Apps > Optional Features > OpenSSH Client"
     exit 1
-fi
+}
 
-success "OpenSSH found"
+Success "OpenSSH found"
 
 # ----------------------------------------------------------
 # Install Cloudflared
 # ----------------------------------------------------------
 
-install_linux() {
+if (Get-Command cloudflared -ErrorAction SilentlyContinue) {
+    Success "Cloudflared already installed"
+} else {
+    Info "Installing Cloudflared..."
 
-    if command -v cloudflared >/dev/null 2>&1; then
-        success "Cloudflared already installed"
-        return
-    fi
-
-    info "Installing Cloudflared..."
-
-    if command -v apt >/dev/null 2>&1; then
-
-        curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
-        | sudo gpg --dearmor \
-        -o /usr/share/keyrings/cloudflare-main.gpg
-
-        echo \
-"deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
-        | sudo tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
-
-        sudo apt update
-        sudo apt install -y cloudflared
-
-    elif command -v dnf >/dev/null 2>&1; then
-
-        sudo dnf install -y cloudflared
-
-    elif command -v yum >/dev/null 2>&1; then
-
-        sudo yum install -y cloudflared
-
-    elif command -v pacman >/dev/null 2>&1; then
-
-        sudo pacman -Sy --noconfirm cloudflared
-
-    else
-
-        error "Unsupported Linux distribution."
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        winget install --id Cloudflare.cloudflared -e --accept-source-agreements --accept-package-agreements
+    } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
+        choco install cloudflared -y
+    } else {
+        ErrorMsg "Neither winget nor choco found. Install cloudflared manually:"
+        Write-Host "https://github.com/cloudflare/cloudflared/releases"
         exit 1
+    }
 
-    fi
-
-    success "Cloudflared installed"
-
+    Success "Cloudflared installed"
 }
-
-install_macos() {
-
-    if command -v cloudflared >/dev/null 2>&1; then
-        success "Cloudflared already installed"
-        return
-    fi
-
-    if ! command -v brew >/dev/null 2>&1; then
-        error "Homebrew is required."
-        echo
-        echo "Install Homebrew:"
-        echo "https://brew.sh"
-        exit 1
-    fi
-
-    info "Installing Cloudflared..."
-
-    brew install cloudflared
-
-    success "Cloudflared installed"
-
-}
-
-if [ "$PLATFORM" = "linux" ]; then
-    install_linux
-else
-    install_macos
-fi
 
 # ----------------------------------------------------------
 # Prepare SSH Directory
 # ----------------------------------------------------------
 
-mkdir -p "$HOME/.ssh"
-chmod 700 "$HOME/.ssh"
+if (-not (Test-Path $sshDir)) {
+    New-Item -ItemType Directory -Path $sshDir | Out-Null
+}
 
-touch "$CONFIG_FILE"
-chmod 600 "$CONFIG_FILE"
+if (-not (Test-Path $configFile)) {
+    New-Item -ItemType File -Path $configFile | Out-Null
+}
 
-START_MARKER="# >>> NexGenAds SSH START >>>"
-END_MARKER="# <<< NexGenAds SSH END <<<"
+$StartMarker = "# >>> NexGenAds SSH START >>>"
+$EndMarker   = "# <<< NexGenAds SSH END <<<"
 
-TMP_FILE=$(mktemp)
+$content = @()
+if (Test-Path $configFile) {
+    $content = Get-Content $configFile
+}
 
-if grep -q "$START_MARKER" "$CONFIG_FILE"; then
+$newContent = @()
+$skip = $false
 
-    awk -v start="$START_MARKER" -v end="$END_MARKER" '
+foreach ($line in $content) {
+    if ($line -eq $StartMarker) {
+        $skip = $true
+        continue
+    }
+    if ($line -eq $EndMarker) {
+        $skip = $false
+        continue
+    }
+    if (-not $skip) {
+        $newContent += $line
+    }
+}
 
-    $0==start {skip=1;next}
-    $0==end {skip=0;next}
+$newContent += ""
+$newContent += $StartMarker
 
-    !skip
+Get-Content $serversFile | ForEach-Object {
+    if ($_ -match "^#" -or $_.Trim() -eq "") {
+        return
+    }
+    $parts     = $_ -split "\|"
+    $Alias     = $parts[0]
+    $HostName  = $parts[1]
+    $UserName  = $parts[2]
+    $Container = if ($parts.Count -ge 4) { $parts[3].Trim() } else { "" }
 
-    ' "$CONFIG_FILE" > "$TMP_FILE"
+    $newContent += ""
+    $newContent += "Host $Alias"
+    $newContent += "    HostName $HostName"
+    $newContent += "    User $UserName"
+    $newContent += "    ProxyCommand cloudflared access ssh --hostname %h"
 
-    mv "$TMP_FILE" "$CONFIG_FILE"
+    if ($Container -ne "") {
+        $newContent += "    RequestTTY yes"
+        $newContent += "    RemoteCommand sudo docker exec -it $Container bash"
+    }
+}
 
-fi
+$newContent += ""
+$newContent += $EndMarker
 
-{
-echo
-echo "$START_MARKER"
-
-while IFS="|" read -r ALIAS HOST USERNAME
-do
-
-    [ -z "$ALIAS" ] && continue
-    [[ "$ALIAS" =~ ^# ]] && continue
-
-cat <<EOF
-
-Host $ALIAS
-    HostName $HOST
-    User $USERNAME
-    ProxyCommand cloudflared access ssh --hostname %h
-
-EOF
-
-done < "$SERVERS_FILE"
-
-echo "$END_MARKER"
-
-} >> "$CONFIG_FILE"
+$newContent | Set-Content $configFile
 
 # ----------------------------------------------------------
 # Summary
 # ----------------------------------------------------------
 
-echo
-success "SSH configuration installed."
+Write-Host ""
+Success "SSH configuration installed."
+Write-Host ""
+Write-Host "Available hosts:"
+Write-Host ""
 
-echo
-echo "Available hosts:"
-echo
+Get-Content $serversFile | ForEach-Object {
+    if ($_ -match "^#" -or $_.Trim() -eq "") { return }
+    $parts     = $_ -split "\|"
+    $Alias     = $parts[0]
+    $Container = if ($parts.Count -ge 4) { $parts[3].Trim() } else { "" }
 
-awk -F'|' '
-/^#/ {next}
-NF>=3 {
-    printf "  ssh %s\n", $1
+    if ($Container -ne "") {
+        Write-Host "  ssh $Alias   (-> container: $Container)"
+    } else {
+        Write-Host "  ssh $Alias"
+    }
 }
-' "$SERVERS_FILE"
 
-echo
-success "Installation completed successfully!"
+Write-Host ""
+Success "Installation completed successfully!"
