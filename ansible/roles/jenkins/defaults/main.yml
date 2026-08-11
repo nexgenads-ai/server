@@ -1,0 +1,9 @@
+---
+# Defaults for the jenkins role.
+# Values are centralized in ansible/group_vars/all.yml.
+# These defaults are used only when the group_vars value is
+# not defined.
+
+jenkins_service: jenkins
+jenkins_port: 8080
+jenkins_data_dir: /var/lib/jenkins

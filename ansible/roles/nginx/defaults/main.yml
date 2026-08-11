@@ -1,0 +1,10 @@
+---
+# Defaults for the nginx role.
+# Values are centralized in ansible/group_vars/all.yml.
+# These defaults are used only when the group_vars value is
+# not defined.
+
+nginx_service: nginx
+nginx_port: 80
+nginx_config_file: /etc/nginx/sites-available/default
+nginx_symlink_file: /etc/nginx/sites-enabled/default

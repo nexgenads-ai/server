@@ -1,0 +1,12 @@
+---
+# Handlers for the jenkins role.
+#
+# Jenkins is only restarted when its configuration actually
+# changes. This phase does not manage Jenkins configuration, so
+# nothing currently notifies this handler; it is reserved for a
+# future phase where Jenkins config is managed by Ansible.
+
+- name: Restart jenkins
+  ansible.builtin.systemd:
+    name: jenkins
+    state: restarted

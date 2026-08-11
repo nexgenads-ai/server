@@ -1,0 +1,10 @@
+---
+# Handlers for the grafana role.
+#
+# Grafana is restarted ONLY when /etc/grafana/grafana.ini changes.
+# The template task notifies this handler.
+
+- name: Restart grafana-server
+  ansible.builtin.systemd:
+    name: grafana-server
+    state: restarted

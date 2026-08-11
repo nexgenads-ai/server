@@ -1,0 +1,57 @@
+---
+# ==========================================================
+# NexGenAds Home Server — central variables
+# ==========================================================
+# These values are used by every role. Change them here and the
+# whole stack follows. Do NOT duplicate them inside roles.
+
+# --- Connection / inventory ----------------------------------
+# Single source of truth for the inventory endpoint.
+ansible_host: server.nexgenads.space
+ansible_user: home
+ansible_become: true
+
+# SSH reaches the origin server through Cloudflare Access.
+# This mirrors the ProxyCommand that setup.sh writes into ~/.ssh/config.
+ansible_ssh_common_args: >-
+  -o ProxyCommand="cloudflared access ssh --hostname {{ server_hostname }}"
+
+# --- Server identity ------------------------------------------
+server_hostname: server.nexgenads.space
+server_user: home
+
+# --- Common role ----------------------------------------------
+common_packages:
+  - curl
+  - wget
+  - gnupg
+  - ca-certificates
+  - apt-transport-https
+  - software-properties-common
+  - python3-apt
+
+# --- Nginx reverse proxy --------------------------------------
+nginx_service: nginx
+nginx_port: 80
+application_port: 8090
+
+# --- Jenkins ---------------------------------------------------
+jenkins_service: jenkins
+jenkins_port: 8080
+jenkins_subpath: /jenkins/
+jenkins_key_url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+jenkins_keyring: /usr/share/keyrings/jenkins-keyring.asc
+jenkins_apt_repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
+jenkins_java_package: openjdk-17-jre-headless
+
+# --- Grafana ---------------------------------------------------
+grafana_service: grafana-server
+grafana_port: 3000
+grafana_bind_address: 127.0.0.1
+grafana_subpath: /grafana/
+grafana_domain: "{{ server_hostname }}"
+grafana_root_url: "https://{{ server_hostname }}{{ grafana_subpath }}"
+grafana_serve_from_sub_path: true
+grafana_key_url: https://apt.grafana.com/gpg.key
+grafana_keyring: /usr/share/keyrings/grafana.gpg
+grafana_apt_repo: "deb [signed-by=/usr/share/keyrings/grafana.gpg] https://apt.grafana.com stable main"

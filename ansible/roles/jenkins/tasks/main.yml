@@ -1,0 +1,87 @@
+---
+# ==========================================================
+# jenkins — native systemd installation (converge, not rebuild)
+# ==========================================================
+# Jenkins is already installed on the server as a native systemd
+# service. This role CONVERGES the machine:
+#   - if jenkins is present -> leave it alone (data preserved)
+#   - if jenkins is missing -> install it cleanly
+# It never touches /var/lib/jenkins, jobs, credentials, plugins
+# or configuration.
+
+- name: Gather installed packages
+  ansible.builtin.package_facts:
+
+- name: Check whether jenkins is already installed
+  ansible.builtin.set_fact:
+    jenkins_present: "{{ 'jenkins' in ansible_facts.packages }}"
+
+# --- Install only when jenkins is missing ---------------------
+- name: Install Java runtime required by Jenkins
+  ansible.builtin.apt:
+    name: "{{ jenkins_java_package }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: not jenkins_present
+
+- name: Add official Jenkins repository signing key
+  ansible.builtin.get_url:
+    url: "{{ jenkins_key_url }}"
+    dest: "{{ jenkins_keyring }}"
+    mode: "0644"
+  when: not jenkins_present
+
+- name: Add official Jenkins APT repository
+  ansible.builtin.apt_repository:
+    repo: "{{ jenkins_apt_repo }}"
+    filename: jenkins
+    state: present
+    update_cache: true
+  when: not jenkins_present
+
+- name: Install Jenkins
+  ansible.builtin.apt:
+    name: jenkins
+    state: present
+    update_cache: true
+  when: not jenkins_present
+
+# --- Converge the service (safe every run) ----------------------
+- name: Enable and start jenkins service
+  ansible.builtin.systemd:
+    name: jenkins
+    enabled: true
+    state: started
+
+# --- Verification ------------------------------------------------
+- name: Wait for Jenkins to listen on port {{ jenkins_port }}
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ jenkins_port }}"
+    state: started
+    timeout: 180
+
+- name: Check jenkins service status
+  ansible.builtin.command: systemctl is-active jenkins
+  register: jenkins_active
+  changed_when: false
+
+- name: Assert jenkins is active
+  ansible.builtin.assert:
+    that:
+      - jenkins_active.stdout == "active"
+    success_msg: "jenkins.service is active"
+    fail_msg: "jenkins.service is not active"
+
+- name: Check jenkins is listening on port {{ jenkins_port }}
+  ansible.builtin.command: "ss -lntp | grep :{{ jenkins_port }}"
+  register: jenkins_port_check
+  changed_when: false
+
+- name: Assert jenkins port is bound
+  ansible.builtin.assert:
+    that:
+      - jenkins_port_check.rc == 0
+    success_msg: "Jenkins is listening on port {{ jenkins_port }}"
+    fail_msg: "Jenkins is NOT listening on port {{ jenkins_port }}"

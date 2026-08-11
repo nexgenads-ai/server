@@ -1,0 +1,24 @@
+---
+# ==========================================================
+# Configure NexGenAds Home Server
+# ==========================================================
+# Converges the origin server: Ubuntu + Nginx + Jenkins + Grafana.
+#
+# Role order matters: backend services (Jenkins, Grafana) are
+# configured before Nginx so the reverse proxy can route to them.
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.ini playbooks/server.yml
+#
+# Check mode (dry run):
+#   ansible-playbook -i inventory/hosts.ini playbooks/server.yml --check
+
+- name: Configure NexGenAds Home Server
+  hosts: home_server
+  become: true
+
+  roles:
+    - common
+    - jenkins
+    - grafana
+    - nginx

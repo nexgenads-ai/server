@@ -1,0 +1,65 @@
+# ==========================================================
+# NexGenAds Nginx default site — managed by Ansible
+# ==========================================================
+# Generated from roles/nginx/templates/default.conf.j2
+#
+# Public hostname : {{ server_hostname }}
+#
+# Routing:
+#   /jenkins/  -> http://127.0.0.1:{{ jenkins_port }}/jenkins/
+#   /grafana/  -> http://127.0.0.1:{{ grafana_port }}
+#   /          -> http://127.0.0.1:{{ application_port }}
+#
+# NOTE on the Grafana route:
+#   Grafana runs with serve_from_sub_path = true. The proxy_pass
+#   must NOT carry a URI component, otherwise nginx would strip
+#   the /grafana/ prefix and Grafana would no longer serve under
+#   the sub-path. The original /grafana/... path is passed
+#   through unchanged and Grafana handles it internally.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ server_hostname }};
+
+    # ----------------------------------------------------------
+    # Root application -> localhost:8090
+    # ----------------------------------------------------------
+    location / {
+        proxy_pass http://127.0.0.1:{{ application_port }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # ----------------------------------------------------------
+    # Jenkins -> localhost:8080/jenkins/
+    # ----------------------------------------------------------
+    location = /jenkins {
+        return 301 /jenkins/;
+    }
+
+    location /jenkins/ {
+        proxy_pass http://127.0.0.1:{{ jenkins_port }}/jenkins/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # ----------------------------------------------------------
+    # Grafana -> localhost:3000 (sub-path mode)
+    # ----------------------------------------------------------
+    location = /grafana {
+        return 301 /grafana/;
+    }
+
+    location /grafana/ {
+        proxy_pass http://127.0.0.1:{{ grafana_port }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

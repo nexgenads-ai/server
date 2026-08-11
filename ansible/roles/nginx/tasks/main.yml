@@ -1,0 +1,121 @@
+---
+# ==========================================================
+# nginx — central reverse proxy
+# ==========================================================
+# Routes:
+#   /jenkins/  -> http://127.0.0.1:8080/jenkins/
+#   /grafana/  -> http://127.0.0.1:3000          (subpath mode)
+#   /          -> http://127.0.0.1:8090
+#
+# Nginx is reloaded ONLY when the configuration changes, and
+# ONLY after `nginx -t` succeeds (handled in handlers/main.yml).
+#
+# The original /etc/nginx/sites-available/default is preserved
+# as a timestamped backup automatically when it changes.
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Deploy nginx default site configuration
+  ansible.builtin.template:
+    src: default.conf.j2
+    dest: /etc/nginx/sites-available/default
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: reload nginx
+
+- name: Ensure default site is enabled
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/default
+    dest: /etc/nginx/sites-enabled/default
+    state: link
+    force: true
+  notify: reload nginx
+
+- name: Enable and start nginx service
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: started
+
+- name: Apply any pending configuration changes before verification
+  ansible.builtin.meta: flush_handlers
+
+# --- Verification ------------------------------------------------
+- name: Check nginx service status
+  ansible.builtin.command: systemctl is-active nginx
+  register: nginx_active
+  changed_when: false
+
+- name: Assert nginx is active
+  ansible.builtin.assert:
+    that:
+      - nginx_active.stdout == "active"
+    success_msg: "nginx.service is active"
+    fail_msg: "nginx.service is not active"
+
+- name: Wait for nginx to listen on port {{ nginx_port }}
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ nginx_port }}"
+    state: started
+    timeout: 60
+
+- name: Check root route through nginx
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ nginx_port }}/"
+    headers:
+      Host: "{{ server_hostname }}"
+    status_code:
+      - 200
+      - 301
+      - 302
+      - 502
+      - 503
+  register: nginx_root
+  changed_when: false
+
+- name: Check /grafana/ returns HTTP 302 (redirect expected)
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ nginx_port }}{{ grafana_subpath }}"
+    headers:
+      Host: "{{ server_hostname }}"
+    follow_redirects: none
+    status_code: 302
+  register: nginx_grafana_root
+  changed_when: false
+
+- name: Capture Grafana redirect Location header
+  ansible.builtin.command: "curl -s -o /dev/null -w '%{http_code}|%{redirect_url}' -H 'Host: {{ server_hostname }}' http://127.0.0.1:{{ nginx_port }}{{ grafana_subpath }}"
+  register: grafana_redirect_check
+  changed_when: false
+
+- name: Assert /grafana/ redirects to {{ grafana_subpath }}login
+  ansible.builtin.assert:
+    that:
+      - nginx_grafana_root.status == 302
+      - grafana_redirect_check.stdout is match("302\\|.*{{ grafana_subpath }}login$")
+    success_msg: "/grafana/ redirects to /grafana/login"
+    fail_msg: "/grafana/ did not redirect to /grafana/login"
+
+- name: Check /grafana/login returns 200 through nginx
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ nginx_port }}{{ grafana_subpath }}login"
+    headers:
+      Host: "{{ server_hostname }}"
+    status_code: 200
+  register: nginx_grafana_login
+  changed_when: false
+
+- name: Assert /grafana/login returns HTTP 200
+  ansible.builtin.assert:
+    that:
+      - nginx_grafana_login.status == 200
+    success_msg: "/grafana/login returns HTTP 200"
+    fail_msg: "/grafana/login did not return HTTP 200"

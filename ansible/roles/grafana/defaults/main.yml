@@ -1,0 +1,10 @@
+---
+# Defaults for the grafana role.
+# Values are centralized in ansible/group_vars/all.yml.
+# These defaults are used only when the group_vars value is
+# not defined.
+
+grafana_service: grafana-server
+grafana_port: 3000
+grafana_subpath: /grafana/
+grafana_data_dir: /var/lib/grafana

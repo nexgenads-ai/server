@@ -1,0 +1,20 @@
+---
+# Handlers for the nginx role.
+#
+# Nginx is reloaded ONLY when the configuration changes AND only
+# after `nginx -t` validates the new configuration. If validation
+# fails, the reload never runs and the play is aborted — the old
+# configuration stays in place.
+
+- name: Validate nginx configuration
+  ansible.builtin.command: nginx -t
+  register: nginx_config_test
+  changed_when: false
+  failed_when: nginx_config_test.rc != 0
+  listen: reload nginx
+
+- name: Reload nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded
+  listen: reload nginx
