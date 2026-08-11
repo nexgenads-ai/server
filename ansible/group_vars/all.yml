@@ -14,7 +14,7 @@ ansible_become: true
 # SSH reaches the origin server through Cloudflare Access.
 # This mirrors the ProxyCommand that setup.sh writes into ~/.ssh/config.
 ansible_ssh_common_args: >-
-  -o ProxyCommand="cloudflared access ssh --hostname {{ server_hostname }}"
+  -o ProxyCommand="cloudflared access ssh --hostname %h"
 
 # --- Server identity ------------------------------------------
 server_hostname: server.nexgenads.space
