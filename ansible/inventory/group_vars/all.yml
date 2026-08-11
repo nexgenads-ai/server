@@ -6,9 +6,7 @@
 # whole stack follows. Do NOT duplicate them inside roles.
 
 # --- Connection / inventory ----------------------------------
-# Single source of truth for the inventory endpoint.
-ansible_host: server.nexgenads.space
-ansible_user: home
+# The SSH host and user are declared in inventory/hosts.ini.
 ansible_become: true
 
 # SSH reaches the origin server through Cloudflare Access.
