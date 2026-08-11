@@ -75,11 +75,13 @@
     port: "{{ grafana_port }}"
     state: started
     timeout: 120
+  check_mode: false
 
 - name: Check grafana-server service status
   ansible.builtin.command: systemctl is-active grafana-server
   register: grafana_active
   changed_when: false
+  check_mode: false
 
 - name: Assert grafana-server is active
   ansible.builtin.assert:
@@ -89,9 +91,10 @@
     fail_msg: "grafana-server.service is not active"
 
 - name: Check grafana is listening on port {{ grafana_port }}
-  ansible.builtin.command: "ss -lntp | grep :{{ grafana_port }}"
+  ansible.builtin.shell: "ss -lntp | grep :{{ grafana_port }}"
   register: grafana_port_check
   changed_when: false
+  check_mode: false
 
 - name: Assert grafana port is bound
   ansible.builtin.assert:
@@ -107,6 +110,7 @@
       - 200
       - 302
   register: grafana_http
+  check_mode: false
 
 - name: Assert Grafana responds on port {{ grafana_port }}
   ansible.builtin.assert:

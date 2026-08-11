@@ -52,6 +52,7 @@
   ansible.builtin.command: systemctl is-active nginx
   register: nginx_active
   changed_when: false
+  check_mode: false
 
 - name: Assert nginx is active
   ansible.builtin.assert:
@@ -66,6 +67,7 @@
     port: "{{ nginx_port }}"
     state: started
     timeout: 60
+  check_mode: false
 
 - name: Check root route through nginx
   ansible.builtin.uri:
@@ -80,6 +82,7 @@
       - 503
   register: nginx_root
   changed_when: false
+  check_mode: false
 
 - name: Check /grafana/ returns HTTP 302 (redirect expected)
   ansible.builtin.uri:
@@ -90,11 +93,13 @@
     status_code: 302
   register: nginx_grafana_root
   changed_when: false
+  check_mode: false
 
 - name: Capture Grafana redirect Location header
   ansible.builtin.command: "curl -s -o /dev/null -w '%{http_code}|%{redirect_url}' -H 'Host: {{ server_hostname }}' http://127.0.0.1:{{ nginx_port }}{{ grafana_subpath }}"
   register: grafana_redirect_check
   changed_when: false
+  check_mode: false
 
 - name: Assert /grafana/ redirects to {{ grafana_subpath }}login
   ansible.builtin.assert:
@@ -112,6 +117,7 @@
     status_code: 200
   register: nginx_grafana_login
   changed_when: false
+  check_mode: false
 
 - name: Assert /grafana/login returns HTTP 200
   ansible.builtin.assert:

@@ -61,11 +61,13 @@
     port: "{{ jenkins_port }}"
     state: started
     timeout: 180
+  check_mode: false
 
 - name: Check jenkins service status
   ansible.builtin.command: systemctl is-active jenkins
   register: jenkins_active
   changed_when: false
+  check_mode: false
 
 - name: Assert jenkins is active
   ansible.builtin.assert:
@@ -75,9 +77,10 @@
     fail_msg: "jenkins.service is not active"
 
 - name: Check jenkins is listening on port {{ jenkins_port }}
-  ansible.builtin.command: "ss -lntp | grep :{{ jenkins_port }}"
+  ansible.builtin.shell: "ss -lntp | grep :{{ jenkins_port }}"
   register: jenkins_port_check
   changed_when: false
+  check_mode: false
 
 - name: Assert jenkins port is bound
   ansible.builtin.assert:
