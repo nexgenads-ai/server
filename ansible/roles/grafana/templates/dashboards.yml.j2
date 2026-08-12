@@ -1,0 +1,20 @@
+# ==========================================================
+# Dashboard provisioning — managed by Ansible
+# ==========================================================
+# Generated from roles/grafana/templates/dashboards.yml.j2
+#
+# The Server Metrics dashboard is loaded from the provisioning
+# directory. Existing dashboards (created manually or by other
+# providers) are NOT touched: only this provider's path is used.
+apiVersion: 1
+
+providers:
+  - name: 'server-metrics'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: {{ grafana_dashboards_dir }}

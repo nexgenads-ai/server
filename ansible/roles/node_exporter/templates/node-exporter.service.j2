@@ -1,0 +1,30 @@
+# ==========================================================
+# Prometheus Node Exporter — managed by Ansible
+# ==========================================================
+# Generated from roles/node_exporter/templates/node-exporter.service.j2
+#
+# Node Exporter binds ONLY to {{ node_exporter_bind_address }}:{{ node_exporter_port }}
+# so it is never exposed publicly. Prometheus (on the same host)
+# scrapes it over the loopback interface.
+
+[Unit]
+Description=Prometheus Node Exporter
+Documentation=https://github.com/prometheus/node_exporter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=node_exporter
+Group=node_exporter
+ExecStart={{ node_exporter_binary }} --web.listen-address={{ node_exporter_bind_address }}:{{ node_exporter_port }}
+Restart=always
+RestartSec=5
+# --- hardening ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

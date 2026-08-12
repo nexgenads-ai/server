@@ -1,0 +1,11 @@
+---
+# Handlers for the node_exporter role.
+#
+# node-exporter is restarted only when its systemd unit actually
+# changes. The template task notifies this handler.
+
+- name: Restart node-exporter
+  ansible.builtin.systemd:
+    name: node-exporter
+    state: restarted
+  when: not ansible_check_mode

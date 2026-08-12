@@ -1,0 +1,21 @@
+# ==========================================================
+# Prometheus datasource for Grafana — managed by Ansible
+# ==========================================================
+# Generated from roles/grafana/templates/prometheus-datasource.yml.j2
+#
+# Grafana queries Prometheus over the loopback interface.
+# Prometheus itself is never exposed publicly.
+apiVersion: 1
+
+datasources:
+  - name: {{ grafana_prometheus_datasource_name }}
+    uid: {{ grafana_prometheus_datasource_uid }}
+    type: prometheus
+    access: proxy
+    orgId: 1
+    url: {{ grafana_prometheus_url }}
+    isDefault: {{ grafana_prometheus_datasource_default | lower }}
+    editable: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: "15s"

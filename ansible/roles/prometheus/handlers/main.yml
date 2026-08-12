@@ -1,0 +1,23 @@
+---
+# Handlers for the prometheus role.
+#
+# Prometheus is restarted ONLY when its configuration changes.
+# Before restarting, the new configuration is validated with
+# `promtool check config`. If validation fails, the restart never
+# runs and the play is aborted — the old configuration stays in
+# place (same pattern as the nginx role).
+
+- name: Validate prometheus configuration
+  ansible.builtin.command: "{{ prometheus_promtool }} check config {{ prometheus_config_dir }}/prometheus.yml"
+  register: prometheus_config_test
+  changed_when: false
+  failed_when: prometheus_config_test.rc != 0
+  listen: reload prometheus
+  when: not ansible_check_mode
+
+- name: Reload prometheus
+  ansible.builtin.systemd:
+    name: prometheus
+    state: reloaded
+  listen: reload prometheus
+  when: not ansible_check_mode

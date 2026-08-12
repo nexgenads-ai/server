@@ -1,0 +1,41 @@
+# ==========================================================
+# Prometheus — managed by Ansible
+# ==========================================================
+# Generated from roles/prometheus/templates/prometheus.service.j2
+#
+# Prometheus binds ONLY to {{ prometheus_bind_address }}:{{ prometheus_port }}
+# (loopback). Grafana queries it over the loopback interface;
+# it is never exposed publicly.
+#
+# --web.enable-lifecycle allows a SIGHUP-triggered reload after
+# configuration changes.
+
+[Unit]
+Description=Prometheus Monitoring
+Documentation=https://prometheus.io/docs/introduction/overview/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=prometheus
+Group=prometheus
+ExecStart={{ prometheus_binary }} \
+  --config.file={{ prometheus_config_dir }}/prometheus.yml \
+  --storage.tsdb.path={{ prometheus_data_dir }} \
+  --web.listen-address={{ prometheus_bind_address }}:{{ prometheus_port }} \
+  --web.enable-lifecycle
+Restart=always
+RestartSec=5
+# --- hardening ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectControlGroups=true
+# Prometheus needs to write its time-series database here:
+ReadWritePaths={{ prometheus_data_dir }}
+
+[Install]
+WantedBy=multi-user.target

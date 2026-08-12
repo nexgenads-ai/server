@@ -58,6 +58,52 @@
     backup: true
   notify: Restart grafana-server
 
+# --- Prometheus datasource + dashboard provisioning --------------
+# Grafana is configured declaratively through its provisioning
+# directories (/etc/grafana/provisioning). This adds Prometheus as
+# a datasource and imports the Server Metrics dashboard WITHOUT
+# touching existing dashboards, users, plugins, or the database.
+- name: Create Grafana provisioning directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: grafana
+    mode: "0750"
+  loop:
+    - /etc/grafana/provisioning/datasources
+    - /etc/grafana/provisioning/dashboards
+
+- name: Provision Prometheus datasource
+  ansible.builtin.template:
+    src: prometheus-datasource.yml.j2
+    dest: /etc/grafana/provisioning/datasources/prometheus.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+    backup: true
+  notify: Restart grafana-server
+
+- name: Provision dashboard provider
+  ansible.builtin.template:
+    src: dashboards.yml.j2
+    dest: /etc/grafana/provisioning/dashboards/dashboards.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+    backup: true
+  notify: Restart grafana-server
+
+- name: Import Server Metrics dashboard
+  ansible.builtin.template:
+    src: server-metrics-dashboard.json.j2
+    dest: /etc/grafana/provisioning/dashboards/server-metrics.json
+    owner: root
+    group: grafana
+    mode: "0640"
+    backup: true
+  notify: Restart grafana-server
+
 # --- Converge the service (safe every run) ----------------------
 - name: Enable and start grafana-server service
   ansible.builtin.systemd:
@@ -118,3 +164,36 @@
       - grafana_http.status in [200, 302]
     success_msg: "Grafana responds on port {{ grafana_port }}"
     fail_msg: "Grafana did not respond on port {{ grafana_port }}"
+
+# --- Prometheus datasource + dashboard verification --------------
+# Skipped in check mode: the provisioning files are only written by
+# a real run, so a stat would always report missing in a dry run.
+- name: Check Prometheus datasource provisioning file exists
+  ansible.builtin.stat:
+    path: /etc/grafana/provisioning/datasources/prometheus.yml
+  register: grafana_datasource_file
+  check_mode: false
+  when: not ansible_check_mode
+
+- name: Assert Prometheus datasource is provisioned
+  ansible.builtin.assert:
+    that:
+      - grafana_datasource_file.stat.exists
+    success_msg: "Prometheus datasource provisioning file exists"
+    fail_msg: "Prometheus datasource provisioning file is missing"
+  when: not ansible_check_mode
+
+- name: Check Server Metrics dashboard provisioning file exists
+  ansible.builtin.stat:
+    path: /etc/grafana/provisioning/dashboards/server-metrics.json
+  register: grafana_dashboard_file
+  check_mode: false
+  when: not ansible_check_mode
+
+- name: Assert Server Metrics dashboard is provisioned
+  ansible.builtin.assert:
+    that:
+      - grafana_dashboard_file.stat.exists
+    success_msg: "Server Metrics dashboard provisioning file exists"
+    fail_msg: "Server Metrics dashboard provisioning file is missing"
+  when: not ansible_check_mode

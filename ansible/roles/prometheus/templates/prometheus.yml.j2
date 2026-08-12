@@ -1,0 +1,18 @@
+# ==========================================================
+# Prometheus configuration — managed by Ansible
+# ==========================================================
+# Generated from roles/prometheus/templates/prometheus.yml.j2
+#
+# Prometheus binds to {{ prometheus_bind_address }}:{{ prometheus_port }}
+# (loopback only). Grafana queries it over the loopback interface;
+# it is never exposed publicly.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: node
+    static_configs:
+      - targets:
+          - "{{ node_exporter_bind_address }}:{{ node_exporter_port }}"

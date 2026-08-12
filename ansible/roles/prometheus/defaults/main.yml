@@ -1,0 +1,22 @@
+---
+# Defaults for the prometheus role.
+# Values are centralized in inventory/group_vars/all.yml.
+# These defaults are used only when the group_vars value is
+# not defined.
+
+prometheus_service: prometheus
+prometheus_version: 3.13.2
+prometheus_arch: amd64
+prometheus_bind_address: 127.0.0.1
+prometheus_port: 9090
+prometheus_config_dir: /etc/prometheus
+prometheus_data_dir: /var/lib/prometheus
+prometheus_install_dir: /opt/prometheus
+prometheus_binary: /opt/prometheus/prometheus
+prometheus_promtool: /opt/prometheus/promtool
+prometheus_archive_path: >-
+  /tmp/prometheus-{{ prometheus_version }}.linux-{{ prometheus_arch }}.tar.gz
+prometheus_release_base: https://github.com/prometheus/prometheus/releases/download
+prometheus_download_url: >-
+  {{ prometheus_release_base }}/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-{{ prometheus_arch }}.tar.gz
+prometheus_checksum: "sha256:0e8c4d46101bd025ea8265e377d2caabc57f488fc1be1c367f37db69ea41be6f"

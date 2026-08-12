@@ -2,10 +2,17 @@
 # ==========================================================
 # Configure NexGenAds Home Server
 # ==========================================================
-# Converges the origin server: Ubuntu + Nginx + Jenkins + Grafana.
+# Converges the origin server: Ubuntu + Nginx + Jenkins + Grafana
+# + Prometheus + Node Exporter.
 #
-# Role order matters: backend services (Jenkins, Grafana) are
-# configured before Nginx so the reverse proxy can route to them.
+# Role order matters:
+#   common        -> base packages
+#   jenkins       -> backend service
+#   node_exporter -> monitored agent (scraped by Prometheus)
+#   prometheus    -> monitoring backend (scrapes node_exporter,
+#                    queried by Grafana)
+#   grafana       -> frontend (reads Prometheus over loopback)
+#   nginx         -> reverse proxy (last layer, routes to backends)
 #
 # Usage:
 #   ansible-playbook -i inventory/hosts.ini playbooks/server.yml
@@ -20,5 +27,7 @@
   roles:
     - common
     - jenkins
+    - node_exporter
+    - prometheus
     - grafana
     - nginx

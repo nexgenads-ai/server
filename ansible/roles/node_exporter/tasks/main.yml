@@ -1,0 +1,137 @@
+---
+# ==========================================================
+# node_exporter — system metrics exporter (loopback only)
+# ==========================================================
+# Installs Prometheus Node Exporter as a native systemd service
+# bound ONLY to 127.0.0.1. It is never exposed publicly.
+#
+# Converge, don't rebuild: if the binary already exists the
+# download/unarchive steps are skipped and the existing
+# installation is preserved. The systemd unit and service state
+# are managed every run.
+
+- name: Create node_exporter system user
+  ansible.builtin.user:
+    name: node_exporter
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+    comment: Prometheus Node Exporter
+
+- name: Create node_exporter install directory
+  ansible.builtin.file:
+    path: "{{ node_exporter_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# --- Install only when the binary is missing -------------------
+- name: Check whether node_exporter binary already exists
+  ansible.builtin.stat:
+    path: "{{ node_exporter_binary }}"
+  register: node_exporter_binary_stat
+
+- name: Download node_exporter archive
+  ansible.builtin.get_url:
+    url: "{{ node_exporter_download_url }}"
+    dest: "{{ node_exporter_archive_path }}"
+    checksum: "{{ node_exporter_checksum }}"
+    mode: "0644"
+  when:
+    - not node_exporter_binary_stat.stat.exists
+    - not ansible_check_mode
+
+- name: Extract node_exporter archive
+  ansible.builtin.unarchive:
+    src: "{{ node_exporter_archive_path }}"
+    dest: "{{ node_exporter_install_dir }}"
+    remote_src: true
+    extra_opts:
+      - "--strip-components=1"
+    creates: "{{ node_exporter_binary }}"
+  when:
+    - not node_exporter_binary_stat.stat.exists
+    - not ansible_check_mode
+
+# --- Service (idempotent every run) ----------------------------
+- name: Deploy node-exporter systemd unit
+  ansible.builtin.template:
+    src: node-exporter.service.j2
+    dest: /etc/systemd/system/node-exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart node-exporter
+
+- name: Enable and start node-exporter service
+  ansible.builtin.systemd:
+    name: "{{ node_exporter_service }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Apply any pending configuration changes before verification
+  ansible.builtin.meta: flush_handlers
+
+# --- Verification ------------------------------------------------
+# Verification is gated on the binary already existing so that
+# check mode against a server that does not yet run node_exporter
+# reports "skipped" instead of timing out. After a real run the
+# binary exists and the checks execute every time.
+- name: Wait for node-exporter to listen on port {{ node_exporter_port }}
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ node_exporter_port }}"
+    state: started
+    timeout: 60
+  check_mode: false
+  when: node_exporter_binary_stat.stat.exists
+
+- name: Check node-exporter service status
+  ansible.builtin.command: systemctl is-active {{ node_exporter_service }}
+  register: node_exporter_active
+  changed_when: false
+  check_mode: false
+  when: node_exporter_binary_stat.stat.exists
+
+- name: Assert node-exporter is active
+  ansible.builtin.assert:
+    that:
+      - node_exporter_active.stdout == "active"
+    success_msg: "node-exporter.service is active"
+    fail_msg: "node-exporter.service is not active"
+  when: node_exporter_binary_stat.stat.exists
+
+- name: Check node-exporter is listening on port {{ node_exporter_port }}
+  ansible.builtin.shell: "ss -lntp | grep :{{ node_exporter_port }}"
+  register: node_exporter_port_check
+  changed_when: false
+  check_mode: false
+  when: node_exporter_binary_stat.stat.exists
+
+- name: Assert node-exporter port is bound
+  ansible.builtin.assert:
+    that:
+      - node_exporter_port_check.rc == 0
+    success_msg: "node-exporter is listening on port {{ node_exporter_port }}"
+    fail_msg: "node-exporter is NOT listening on port {{ node_exporter_port }}"
+  when: node_exporter_binary_stat.stat.exists
+
+- name: Check node-exporter /metrics endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ node_exporter_port }}/metrics"
+    status_code: 200
+  register: node_exporter_metrics
+  check_mode: false
+  when: node_exporter_binary_stat.stat.exists
+
+- name: Assert /metrics returns node_cpu_seconds_total
+  ansible.builtin.assert:
+    that:
+      - node_exporter_metrics.status == 200
+      - "'node_cpu_seconds_total' in node_exporter_metrics.content"
+    success_msg: "node-exporter /metrics returns CPU metrics"
+    fail_msg: "node-exporter /metrics did not return node_cpu_seconds_total"
+  when: node_exporter_binary_stat.stat.exists

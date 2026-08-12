@@ -1,0 +1,188 @@
+---
+# ==========================================================
+# prometheus — monitoring backend (loopback only)
+# ==========================================================
+# Installs Prometheus as a native systemd service bound ONLY to
+# 127.0.0.1:9090. Grafana reaches it over the loopback interface;
+# it is never exposed publicly.
+#
+# Converge, don't rebuild: if the prometheus binary already exists
+# the download/unarchive steps are skipped. Existing time-series
+# data under {{ prometheus_data_dir }} is preserved.
+
+- name: Create prometheus system user
+  ansible.builtin.user:
+    name: prometheus
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+    comment: Prometheus monitoring
+
+- name: Create prometheus install directory
+  ansible.builtin.file:
+    path: "{{ prometheus_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# --- Install only when the binary is missing -------------------
+- name: Check whether prometheus binary already exists
+  ansible.builtin.stat:
+    path: "{{ prometheus_binary }}"
+  register: prometheus_binary_stat
+
+- name: Download prometheus archive
+  ansible.builtin.get_url:
+    url: "{{ prometheus_download_url }}"
+    dest: "{{ prometheus_archive_path }}"
+    checksum: "{{ prometheus_checksum }}"
+    mode: "0644"
+  when:
+    - not prometheus_binary_stat.stat.exists
+    - not ansible_check_mode
+
+- name: Extract prometheus archive
+  ansible.builtin.unarchive:
+    src: "{{ prometheus_archive_path }}"
+    dest: "{{ prometheus_install_dir }}"
+    remote_src: true
+    extra_opts:
+      - "--strip-components=1"
+    creates: "{{ prometheus_binary }}"
+  when:
+    - not prometheus_binary_stat.stat.exists
+    - not ansible_check_mode
+
+# --- Configuration directories ----------------------------------
+- name: Create prometheus configuration directory
+  ansible.builtin.file:
+    path: "{{ prometheus_config_dir }}"
+    state: directory
+    owner: root
+    group: prometheus
+    mode: "0750"
+
+- name: Create prometheus data directory
+  ansible.builtin.file:
+    path: "{{ prometheus_data_dir }}"
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: "0750"
+
+# --- Configuration (idempotent template + backup) -------------
+- name: Deploy prometheus.yml from template
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: "{{ prometheus_config_dir }}/prometheus.yml"
+    owner: root
+    group: prometheus
+    mode: "0640"
+    backup: true
+  notify: reload prometheus
+
+# --- Service (idempotent every run) ----------------------------
+- name: Deploy prometheus systemd unit
+  ansible.builtin.template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload prometheus
+
+- name: Enable and start prometheus service
+  ansible.builtin.systemd:
+    name: "{{ prometheus_service }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Apply any pending configuration changes before verification
+  ansible.builtin.meta: flush_handlers
+
+# --- Verification ------------------------------------------------
+# Verification is gated on the binary already existing so that
+# check mode against a server that does not yet run prometheus
+# reports "skipped" instead of timing out. After a real run the
+# binary exists and the checks execute every time.
+- name: Wait for prometheus to listen on port {{ prometheus_port }}
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ prometheus_port }}"
+    state: started
+    timeout: 60
+  check_mode: false
+  when: prometheus_binary_stat.stat.exists
+
+- name: Check prometheus service status
+  ansible.builtin.command: systemctl is-active {{ prometheus_service }}
+  register: prometheus_active
+  changed_when: false
+  check_mode: false
+  when: prometheus_binary_stat.stat.exists
+
+- name: Assert prometheus is active
+  ansible.builtin.assert:
+    that:
+      - prometheus_active.stdout == "active"
+    success_msg: "prometheus.service is active"
+    fail_msg: "prometheus.service is not active"
+  when: prometheus_binary_stat.stat.exists
+
+- name: Check prometheus is listening on port {{ prometheus_port }}
+  ansible.builtin.shell: "ss -lntp | grep :{{ prometheus_port }}"
+  register: prometheus_port_check
+  changed_when: false
+  check_mode: false
+  when: prometheus_binary_stat.stat.exists
+
+- name: Assert prometheus port is bound
+  ansible.builtin.assert:
+    that:
+      - prometheus_port_check.rc == 0
+    success_msg: "prometheus is listening on port {{ prometheus_port }}"
+    fail_msg: "prometheus is NOT listening on port {{ prometheus_port }}"
+  when: prometheus_binary_stat.stat.exists
+
+- name: Check prometheus readiness endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ prometheus_port }}/-/ready"
+    status_code: 200
+  register: prometheus_ready
+  check_mode: false
+  when: prometheus_binary_stat.stat.exists
+
+- name: Assert prometheus is ready
+  ansible.builtin.assert:
+    that:
+      - prometheus_ready.status == 200
+    success_msg: "prometheus /-/ready returns HTTP 200"
+    fail_msg: "prometheus /-/ready did not return HTTP 200"
+  when: prometheus_binary_stat.stat.exists
+
+- name: Wait for node_exporter scrape target to report UP
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ prometheus_port }}/api/v1/targets"
+    return_content: true
+  register: prometheus_targets
+  until: (prometheus_targets.content | from_json).data.activeTargets |
+         selectattr('scrapePool', 'equalto', 'node') |
+         selectattr('health', 'equalto', 'up') | list | length > 0
+  retries: 6
+  delay: 5
+  changed_when: false
+  check_mode: false
+  when: prometheus_binary_stat.stat.exists
+
+- name: Assert node_exporter scrape target is UP
+  ansible.builtin.assert:
+    that:
+      - (prometheus_targets.content | from_json).data.activeTargets |
+        selectattr('scrapePool', 'equalto', 'node') |
+        selectattr('health', 'equalto', 'up') | list | length > 0
+    success_msg: "prometheus sees node_exporter target as UP"
+    fail_msg: "prometheus does not see the node_exporter target as UP"
+  when: prometheus_binary_stat.stat.exists

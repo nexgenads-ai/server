@@ -8,3 +8,9 @@ grafana_service: grafana-server
 grafana_port: 3000
 grafana_subpath: /grafana/
 grafana_data_dir: /var/lib/grafana
+grafana_prometheus_url: "http://127.0.0.1:9090"
+grafana_prometheus_datasource_name: Prometheus
+grafana_prometheus_datasource_uid: prometheus
+grafana_prometheus_datasource_default: true
+grafana_dashboards_dir: /etc/grafana/provisioning/dashboards
+grafana_server_metrics_dashboard_uid: nexgenads-server-metrics
