@@ -123,6 +123,7 @@
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ node_exporter_port }}/metrics"
     status_code: 200
+    return_content: true
   register: node_exporter_metrics
   check_mode: false
   when: node_exporter_binary_stat.stat.exists

@@ -25,6 +25,7 @@ ExecStart={{ prometheus_binary }} \
   --storage.tsdb.path={{ prometheus_data_dir }} \
   --web.listen-address={{ prometheus_bind_address }}:{{ prometheus_port }} \
   --web.enable-lifecycle
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
 # --- hardening ---

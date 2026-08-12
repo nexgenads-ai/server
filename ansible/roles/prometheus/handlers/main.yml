@@ -19,5 +19,6 @@
   ansible.builtin.systemd:
     name: prometheus
     state: reloaded
+    daemon_reload: true
   listen: reload prometheus
   when: not ansible_check_mode
