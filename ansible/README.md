@@ -689,12 +689,15 @@ is designed to **never break it**:
 ## 20. Notes on server-dispatch.sh
 
 `server-dispatch.sh` was written when Jenkins/Grafana/Prometheus were
-Docker containers (it ran `docker exec ...`). Jenkins, Grafana, Prometheus,
-and Node Exporter are now **native systemd services**, so that dispatcher
-is **not compatible** with the current architecture for those targets. It
-has been **left untouched** on purpose. A future phase may replace it with
-an Ansible-managed dispatcher that targets systemd units instead of
-containers.
+Docker containers (it ran `docker exec ...`). Those services are now managed
+differently: Jenkins, Grafana, and Node Exporter run as **native systemd
+services**, and Prometheus was previously a **snap** package
+(`snap.prometheus.prometheus`) that this repo replaces with a native
+systemd service (the role stops and disables the snap first). The dispatcher
+is therefore **not compatible** with the current architecture for those
+targets. It has been **left untouched** on purpose. A future phase may
+replace it with an Ansible-managed dispatcher that targets systemd units
+instead of containers.
 
 ---
 

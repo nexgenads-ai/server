@@ -9,6 +9,25 @@
 # Converge, don't rebuild: if the prometheus binary already exists
 # the download/unarchive steps are skipped. Existing time-series
 # data under {{ prometheus_data_dir }} is preserved.
+#
+# Legacy cleanup: the server previously ran Prometheus as a snap
+# package ("snap.prometheus.prometheus") which holds port
+# {{ prometheus_port }}. The role takes over natively, so the snap
+# service is stopped and disabled to free the port.
+
+- name: Check whether the snap prometheus service exists
+  ansible.builtin.command: snap services prometheus
+  register: prometheus_snap_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Stop and disable legacy snap prometheus service
+  ansible.builtin.command: snap stop --disable prometheus
+  changed_when: false
+  when:
+    - prometheus_snap_status.rc == 0
+    - not ansible_check_mode
 
 - name: Create prometheus system user
   ansible.builtin.user:
