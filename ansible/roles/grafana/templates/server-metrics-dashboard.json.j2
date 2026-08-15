@@ -271,7 +271,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 17
       },
       "id": 105,
       "title": "Memory",
@@ -301,7 +301,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 10
+        "y": 18
       },
       "id": 106,
       "options": {
@@ -359,7 +359,7 @@
         "h": 8,
         "w": 4,
         "x": 12,
-        "y": 10
+        "y": 18
       },
       "id": 107,
       "options": {
@@ -417,7 +417,7 @@
         "h": 8,
         "w": 4,
         "x": 16,
-        "y": 10
+        "y": 18
       },
       "id": 108,
       "options": {
@@ -475,7 +475,7 @@
         "h": 8,
         "w": 4,
         "x": 20,
-        "y": 10
+        "y": 18
       },
       "id": 109,
       "options": {
@@ -511,7 +511,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 26
       },
       "id": 110,
       "title": "Disk",
@@ -541,7 +541,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 19
+        "y": 27
       },
       "id": 111,
       "options": {
@@ -597,9 +597,125 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 6,
+        "w": 4,
         "x": 12,
-        "y": 19
+        "y": 27
+      },
+      "id": 123,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "{{ grafana_prometheus_datasource_uid }}"
+          },
+          "expr": "node_filesystem_size_bytes{mountpoint=\"/\", instance=\"$instance\", fstype!~\"tmpfs|overlay\"}",
+          "legendFormat": "Total {{ "{{mountpoint}}" }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Disk Space",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "{{ grafana_prometheus_datasource_uid }}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 16,
+        "y": 27
+      },
+      "id": 124,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "{{ grafana_prometheus_datasource_uid }}"
+          },
+          "expr": "node_filesystem_size_bytes{mountpoint=\"/\", instance=\"$instance\", fstype!~\"tmpfs|overlay\"} - node_filesystem_avail_bytes{mountpoint=\"/\", instance=\"$instance\", fstype!~\"tmpfs|overlay\"}",
+          "legendFormat": "Used {{ "{{mountpoint}}" }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Used Disk Space",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "{{ grafana_prometheus_datasource_uid }}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 20,
+        "y": 27
       },
       "id": 112,
       "options": {
@@ -649,9 +765,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 6,
-        "x": 18,
-        "y": 19
+        "w": 24,
+        "x": 0,
+        "y": 35
       },
       "id": 113,
       "options": {
@@ -696,7 +812,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 43
       },
       "id": 114,
       "title": "Network",
@@ -724,7 +840,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 44
       },
       "id": 115,
       "options": {
@@ -776,7 +892,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 28
+        "y": 44
       },
       "id": 116,
       "options": {
@@ -828,7 +944,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 36
+        "y": 52
       },
       "id": 117,
       "options": {
@@ -891,7 +1007,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 60
       },
       "id": 122,
       "title": "System",
@@ -925,7 +1041,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 45
+        "y": 61
       },
       "id": 118,
       "options": {
@@ -983,7 +1099,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 45
+        "y": 61
       },
       "id": 119,
       "options": {
@@ -1041,7 +1157,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 45
+        "y": 61
       },
       "id": 120,
       "options": {
@@ -1099,7 +1215,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 45
+        "y": 61
       },
       "id": 121,
       "options": {
